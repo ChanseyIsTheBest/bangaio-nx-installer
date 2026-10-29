@@ -31,7 +31,7 @@ from the player's files, as bangaio-nx's native build makes them:
    first start.
 6. **bangaio-nx.zip** (about 300 MB), streamed to a download by the service worker (`sw.js`): `switch/bangaio-nx/` with
    the NRO, `renut.toml` (the three settings), `pipeline_list.bin`, the two shader files and `game_root/` (the game's
-   files), and the optional four-core NPDM in `atmosphere/contents/05BA6A1000001000/exefs/`.
+   files).
 
 The shaders the page makes give the console the same code as the native build's: the shader table's numbers are the
 same for all 95, and all 137 variants compile to the same DKSH bytes (the GLSL texts differ only in how DXC numbers

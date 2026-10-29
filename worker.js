@@ -204,7 +204,7 @@ self.onmessage = async ({ data }) => {
           `${glslHash.slice(0, 12)} / ${cacheHash.slice(0, 12)})`) : ''));
 
     // the zip: the program, its files (the manifest's paths are from the SD card's root: renut.toml with the three
-    // settings, the pipeline list, the four-core NPDM), the shaders, and the game's files
+    // settings, the pipeline list), the shaders, and the game's files
     const entries = [
       { path: `${ROOT}/${build.nro}`, size: nro.length },
       ...extras.map((f) => ({ path: f.path, size: f.bytes.length })),

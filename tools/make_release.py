@@ -8,7 +8,7 @@ banjo-nx-installer's).
 The NRO must be a distribution build (bangaio-nx: an empty shader table, tools/renut_switch_shader_cache.py --only on an
 empty folder, and no GLSL package, BANJO_DEKO3D_GLSL_CPP pointing at no file: Bangai-O makes no shader at runtime): it
 carries none of the game's shaders. release/ then holds the NRO, the files the zip carries beside it (renut.toml with
-the three settings, the pipeline list, the four-core NPDM), the translator's shader_common.h, and manifest.json naming
+the three settings, the pipeline list), the translator's shader_common.h, and manifest.json naming
 each file's SHA-256 and the supported default.xex (its SHA-256 only). With --reference, the SHA-256 of the
 deko3d_glsl.bin and deko3d_shaders.bin a run of the whole build made (they are the same bytes in every browser): the page
 then says whether its own are identical. release/variants.txt is written by bangaio-nx's tools/deko3d_variant_cache.py
@@ -21,7 +21,6 @@ import os
 import shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NPDM = 'atmosphere/contents/05BA6A1000001000/exefs/main.npdm'
 
 
 def sha256(path):
@@ -48,7 +47,6 @@ def main():
               (a.pipelines, 'pipeline_list.bin', 'switch/bangaio-nx/pipeline_list.bin'),
               (os.path.join(a.port, 'dist', 'switch', 'bangaio-nx', 'renut.toml'), 'renut.toml',
                'switch/bangaio-nx/renut.toml'),
-              (os.path.join(a.port, 'tools', 'forwarder', 'bangaio_main.npdm'), 'main.npdm', NPDM),
               (os.path.join(a.port, 'app', 'thirdparty', 'reblue-XenosRecomp', 'XenosRecomp', 'shader_common.h'),
                'shader_common.h', None)]
     for src, name, _ in copies:
