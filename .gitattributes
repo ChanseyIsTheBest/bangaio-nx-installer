@@ -1,0 +1,2 @@
+# The release files are checked by SHA-256 (release/manifest.json) or feed the shader build: their bytes as committed.
+release/** -text
