@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "builds": [
+    {
+      "edition": "Xbox Live Arcade (title 58410AF2)",
+      "version": "1.0.0",
+      "xex_sha256": "1e057d378b69259c0aa536dfcb8f3ae00e23130a6c1ef860627ddca1d77c9fcd",
+      "nro": "bangaio-nx.nro",
+      "nro_sha256": "4d7d445244713ada1e5b89690edab2f8786921063b2a8afa7876877589b7c33f",
+      "files": [
+        {
+          "path": "switch/bangaio-nx/pipeline_list.bin",
+          "source": "pipeline_list.bin",
+          "sha256": "8dd918cb274e672028ce84c3cbc710ede9d2d0f03d0eccbaae29f6a7192f4fef"
+        },
+        {
+          "path": "switch/bangaio-nx/renut.toml",
+          "source": "renut.toml",
+          "sha256": "a1a9769d2572770e1e981058b7cb3598108fdc136fa3d7bf041fef494f599d15"
+        },
+        {
+          "path": "atmosphere/contents/05BA6A1000001000/exefs/main.npdm",
+          "source": "main.npdm",
+          "sha256": "63739710ea2b4b1dfebf5d34f4f3e423368ca747a3223541d77682d578ff993a"
+        }
+      ],
+      "deko3d_glsl_sha256": "1a8fac964b4c01d313118e43d5787738a58da0355279652c5dc36e87b5bcdcdd",
+      "deko3d_shaders_sha256": "177c1f92e088e296946f55bbcf4e42dbf91b3f434062b90bba10d051375561a3"
+    }
+  ]
+}

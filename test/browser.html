@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>bangaio-nx installer: browser test</title>
+  <style>
+    body { background: #111; color: #ddd; font: 13px/1.45 ui-monospace, monospace; margin: 16px; }
+    .bad { color: #ff6b6b; } .good { color: #5fd27f; }
+    progress { width: 100%; }
+  </style>
+</head>
+<body>
+<!-- bangaio-nx-installer (from banjo-nx-installer's browser test): worker.js in the browser, given what the page gives
+     it, from the files the test server serves (python serve.py 8193 . --test-files <folder>):
+       ?mode=package&file=<path in that folder>   the game's Xbox 360 package, as File (the page's "Choose the package")
+       ?mode=folder[&dir=<path in that folder>]    the extracted game folder (that folder itself without dir=), as
+                                                   Files (the page's "Choose an extracted folder")
+     The download sink is this page: the zip is kept in memory (nothing saved), then its central directory is read and
+     checked: the entries, the program's and the release files' SHA-256 against the manifest, the shader files' against
+     the reference build's, and every game file's CRC-32 against its bytes in the stream. -->
+<progress id="bar" max="1" value="0"></progress>
+<div id="log"></div>
+<script type="module">
+import { crc32Update } from '../lib/zip.js';
+const logBox = document.getElementById('log');
+const bar = document.getElementById('bar');
+const T0 = performance.now();
+const log = (text, cls = '') => {
+  const d = document.createElement('div');
+  d.textContent = `[${((performance.now() - T0) / 1000).toFixed(0)} s] ${text}`;
+  d.className = cls;
+  logBox.appendChild(d);
+  window.testLog = (window.testLog || []).concat(d.textContent);
+};
+window.testDone = false;
+const finish = (ok) => { window.testOk = ok; window.testDone = true; };
+const q = new URLSearchParams(location.search);
+const mode = q.get('mode') || 'package';
+const fileOf = async (path, name) => new File([await (await fetch('/_test/' + path.split('/').map(encodeURIComponent).join('/'))).blob()], name);
+const list = await (await fetch('/_test_list')).json();
+let input;
+if (mode === 'package') {
+  const p = q.get('file');
+  input = { packages: [await fileOf(p, p.split('/').pop())] };
+  log(`package ${p}: ${input.packages[0].size} bytes`);
+} else {
+  const dir = (q.get('dir') || '').replace(/\/$/, '') + (q.get('dir') ? '/' : '');
+  const folder = [];
+  for (const f of list.filter((e) => e.path.startsWith(dir))) {
+    const path = f.path.slice(dir.length);
+    folder.push({ path, size: f.size, file: await fileOf(f.path, path.split('/').pop()) });
+  }
+  input = { folder };
+  log(`folder ${dir}: ${folder.length} files`);
+}
+const manifest = await (await fetch('../release/manifest.json')).json();
+const build = manifest.builds[0];
+const hex = async (blob) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())), (b) => b.toString(16).padStart(2, '0')).join('');
+
+const channel = new MessageChannel();
+let size = 0;
+const parts = [];
+channel.port2.onmessage = async ({ data }) => {
+  if (data.type === 'chunk') {
+    parts.push(new Uint8Array(data.buffer));
+    channel.port2.postMessage({ type: 'pull' });
+  } else if (data.type === 'end') {
+    const zip = new Blob(parts);
+    log(`zip: ${zip.size} of ${size} bytes`, zip.size === size ? 'good' : 'bad');
+    try { finish(await check(zip)); } catch (e) { log(`zip check failed: ${e.message}`, 'bad'); finish(false); }
+  } else if (data.type === 'error') {
+    log(`zip stream error: ${data.message}`, 'bad');
+    finish(false);
+  }
+};
+
+// The central directory (lib/zip.js: stored entries, UTF-8 names, ZIP64 end record), then each entry's bytes.
+async function check(zip) {
+  const tail = new DataView(await zip.slice(zip.size - 98).arrayBuffer());
+  if (tail.getUint32(0, true) !== 0x06064b50 || tail.getUint32(76, true) !== 0x06054b50) throw new Error('no ZIP64 end record');
+  const count = Number(tail.getBigUint64(32, true)), dirSize = Number(tail.getBigUint64(40, true)), dirAt = Number(tail.getBigUint64(48, true));
+  const dir = new DataView(await zip.slice(dirAt, dirAt + dirSize).arrayBuffer());
+  const dec = new TextDecoder();
+  const entries = new Map();
+  for (let at = 0, i = 0; i < count; i++) {
+    if (dir.getUint32(at, true) !== 0x02014b50) throw new Error(`central record ${i} is not one`);
+    const crc = dir.getUint32(at + 16, true), length = dir.getUint32(at + 20, true);
+    const nameLength = dir.getUint16(at + 28, true), extra = dir.getUint16(at + 30, true), comment = dir.getUint16(at + 32, true);
+    const local = dir.getUint32(at + 42, true);
+    const name = dec.decode(new Uint8Array(dir.buffer, at + 46, nameLength));
+    const head = new DataView(await zip.slice(local, local + 30).arrayBuffer());
+    const start = local + 30 + head.getUint16(26, true) + head.getUint16(28, true);
+    entries.set(name, { crc, length, data: zip.slice(start, start + length) });
+    at += 46 + nameLength + extra + comment;
+  }
+  const game = [...entries.keys()].filter((n) => n.startsWith('switch/bangaio-nx/game_root/'));
+  log(`${entries.size} entries: ${game.length} in game_root/, ${[...entries.keys()].filter((n) => !game.includes(n)).join(', ')}`);
+  let ok = true;
+  const want = [[`switch/bangaio-nx/${build.nro}`, build.nro_sha256], ...build.files.map((f) => [f.path, f.sha256]),
+                ['switch/bangaio-nx/deko3d_glsl.bin', build.deko3d_glsl_sha256], ['switch/bangaio-nx/deko3d_shaders.bin', build.deko3d_shaders_sha256]];
+  for (const [name, sha] of want) {
+    const e = entries.get(name);
+    const got = e ? await hex(e.data) : 'missing';
+    const same = got === sha;
+    ok &&= same;
+    log(`${name}: ${same ? 'the expected SHA-256' : `NOT the expected SHA-256 (${got.slice(0, 16)})`}`, same ? 'good' : 'bad');
+  }
+  let crcGood = 0, crcBad = 0;
+  for (const name of game) {
+    const e = entries.get(name);
+    let crc = 0;
+    for (let at = 0; at < e.length; at += 16 << 20) crc = crc32Update(crc, new Uint8Array(await e.data.slice(at, at + (16 << 20)).arrayBuffer()));
+    if (crc === e.crc) crcGood++; else { crcBad++; if (crcBad <= 3) log(`CRC differs: ${name}`, 'bad'); }
+  }
+  ok &&= crcBad === 0 && game.length > 0;
+  log(`game files: ${crcGood} with their CRC-32, ${crcBad} without`, crcBad ? 'bad' : 'good');
+  return ok;
+}
+
+const worker = new Worker('../worker.js', { type: 'module' });
+worker.onmessage = ({ data }) => {
+  if (data.type === 'log') log(data.text);
+  else if (data.type === 'progress') bar.value = data.fraction;
+  else if (data.type === 'size') {
+    size = data.size;
+    log(`zip size ${size}`);
+    for (let i = 0; i < 4; i++) channel.port2.postMessage({ type: 'pull' });
+  } else if (data.type === 'done') log(`worker done in ${data.seconds} s`, 'good');
+  else if (data.type === 'error') { log(`ERROR: ${data.message}`, 'bad'); finish(false); }
+};
+worker.onerror = (e) => { log(`worker error: ${e.message}`, 'bad'); finish(false); };
+worker.postMessage({ input, port: channel.port1 }, [channel.port1]);
+</script>
+</body>
+</html>
